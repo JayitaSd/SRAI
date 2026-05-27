@@ -117,6 +117,7 @@ The system prompt ensures the model:
   - chat model: `gemini-2.5-flash`
   - embedding model: `gemini-embedding-001`
 - **SimpleVectorStore** for local persistence
+- **PostMan**
 
 ---
 
