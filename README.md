@@ -1,11 +1,20 @@
-# 🏀 NBA RAG Assistant
+# SRAI - Spring Retrieval AI 🧠
 
-[![Java Version](https://img.shields.io/badge/Java-21-blue?logo=java)](https://www.oracle.com/java/)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.6-brightgreen?logo=spring-boot)](https://spring.io/projects/spring-boot)
-[![Maven](https://img.shields.io/badge/Maven-3.9+-orange?logo=apache-maven)](https://maven.apache.org/)
-[![Google Gemini](https://img.shields.io/badge/Google%20Gemini-API-yellow?logo=google)](https://ai.google.dev/)
+---
 
-> 🎯 Ask questions about NBA content and get answers grounded in the provided document — not in random outside knowledge.
+<div align="center">
+
+[![Java Version](https://img.shields.io/badge/Java-21-FF6B35?style=for-the-badge&logo=java&logoColor=white)](https://www.oracle.com/java/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.6-6DB33F?style=for-the-badge&logo=spring-boot&logoColor=white)](https://spring.io/projects/spring-boot)
+[![Spring AI](https://img.shields.io/badge/Spring%20AI-2.0.0--M7-00D084?style=for-the-badge&logo=spring&logoColor=white)](https://spring.io/projects/spring-ai)
+[![Maven](https://img.shields.io/badge/Maven-3.9+-6C63FF?style=for-the-badge&logo=apache-maven&logoColor=white)](https://maven.apache.org/)
+[![Google Gemini](https://img.shields.io/badge/Google%20Gemini-API-4285F4?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev/)
+
+</div>
+
+---
+
+> 🎯 Ask questions about your documents and get answers grounded in the provided content — not in random outside knowledge.
 
 A modern **Retrieval-Augmented Generation (RAG)** application that demonstrates how to build document-grounded AI assistants. This project combines **Spring Boot**, **Spring AI**, and **Google Gemini** to create a system that retrieves relevant document chunks and answers questions using only the provided context.
 
@@ -13,7 +22,7 @@ A modern **Retrieval-Augmented Generation (RAG)** application that demonstrates 
 
 ## 📚 Table of Contents
 
-- [Key Features](#key-features)
+- [Key Features](#-key-features)
 - [How It Works](#-how-it-works)
 - [Tech Stack](#-tech-stack)
 - [Getting Started](#-getting-started)
@@ -30,7 +39,10 @@ A modern **Retrieval-Augmented Generation (RAG)** application that demonstrates 
 - **Local Vector Store** — Embeddings are cached locally in `vectorstore.json`, so no recomputation on every startup
 - **Production-Ready Code** — Clean Spring Boot config, dependency injection, and best practices
 - **Easy to Extend** — Simple to add more documents or swap embeddings/chat models
-- **No External Dependencies** — Uses only Spring AI and Google Gemini APIs
+- **Flexible Content** — Works with any text document (legal docs, research papers, knowledge bases, etc.)
+- **No External Vector Databases** — Uses only Spring AI and Google Gemini APIs
+
+---
 
 ## 🚀 What it does
 
@@ -51,9 +63,15 @@ The endpoint at `GET /rag/models` accepts a message parameter and:
 1. translates your question into a vector embedding
 2. searches the vector store for matching document chunks
 3. passes those chunks as context to Gemini
-4. returns Gemini's grounded response
+4. returns Gemini's grounded response based on the retrieved context
+
+---
 
 ## 🧠 How it works
+
+### Pipeline Overview
+
+![RAG Pipeline](src/main/resources/images/pipeline.png)
 
 ### 1️⃣ Document ingestion on startup
 
@@ -62,11 +80,11 @@ When the app starts, `RagConfig` checks whether a persisted vector store exists:
 | Scenario | Action |
 |----------|--------|
 | Vector store exists | Load it immediately from `vectorstore.json` |
-| Vector store missing | Read `nba.txt` → tokenize → embed → persist |
+| Vector store missing | Read document → tokenize → embed → persist |
 
 If the vector store is being built for the first time:
 
-1. Read the NBA document from `src/main/resources/data/nba.txt`
+1. Read your document from `src/main/resources/data/document.txt` (currently using an example document)
 2. Split it into smaller, overlapping chunks using token-based splitting
 3. Generate embeddings for each chunk using Gemini's embedding model
 4. Store the embeddings locally in `vectorstore.json`
@@ -85,6 +103,8 @@ The system prompt ensures the model:
 - avoids using external knowledge
 - admits when the documents don't contain enough information
 
+---
+
 ## 🛠️ Tech stack
 
 - **Java 21**
@@ -96,13 +116,53 @@ The system prompt ensures the model:
   - embedding model: `gemini-embedding-001`
 - **SimpleVectorStore** for local persistence
 
+---
+
 ## 📁 Project layout
 
-- `src/main/java/com/example/rag/RagApplication.java` — application entry point
-- `src/main/java/com/example/rag/RagConfig.java` — document loading and vector store setup
-- `src/main/java/com/example/rag/ModelController.java` — REST endpoint for questions
-- `src/main/resources/data/nba.txt` — source document used for retrieval
-- `src/main/resources/data/vectorstore.json` — saved vector store data
+```
+SRAI/                                              # Root directory
+│
+├── src/
+│   ├── main/
+│   │   ├── java/
+│   │   │   └── com/example/rag/                 # Application Source Code
+│   │   │       ├── RagApplication.java          # Spring Boot application entry point
+│   │   │       ├── RagConfig.java               # Vector store & document loading config
+│   │   │       └── ModelController.java         # REST endpoint handler (@RestController)
+│   │   │
+│   │   └── resources/
+│   │       ├── application.properties           # Spring Boot & Gemini API configuration
+│   │       ├── data/                            # Document storage directory
+│   │       │   ├── document.txt                 # Example text document for retrieval
+│   │       │   └── vectorstore.json            # Persisted vector embeddings (auto-generated)
+│   │       │
+│   │       └── images/                          # Visual assets & diagrams
+│   │           └── pipeline.png                 # RAG pipeline architecture diagram
+│   │
+│   └── test/
+│       └── java/
+│           └── com/example/rag/
+│               └── RagApplicationTests.java    # Unit tests for the application
+│
+├── pom.xml                                       # Maven project configuration & dependencies
+├── mvnw & mvnw.cmd                              # Maven Wrapper scripts (Linux/macOS & Windows)
+├── README.md                                     # Project documentation
+└── .gitignore                                    # Git ignore rules
+
+```
+
+### Key Directories Explained
+
+| Directory | Purpose |
+|-----------|---------|
+| `src/main/java/com/example/rag/` | Core application logic - controllers, config, main app class |
+| `src/main/resources/data/` | Your document files (text files) and generated vector store |
+| `src/main/resources/images/` | Diagrams and visual documentation |
+| `src/test/java/com/example/rag/` | Unit and integration tests |
+| `target/` | Compiled classes and build artifacts (generated by Maven) |
+
+---
 
 ## ✅ Requirements
 
@@ -111,47 +171,96 @@ To run the app, you'll need:
 - **JDK 21**
 - **Maven** or the included Maven Wrapper
 - a valid **Google Gemini API key**
+- a valid **Google GenAI Project ID**
 - internet access for Gemini API calls
+
+---
 
 ## 🔧 Configuration
 
-The app expects the Gemini API key in the environment variable below:
+The app requires two environment variables for Google Gemini API access:
+
+### API Key
 
 ```bash
 GEMINI_API_KEY
 ```
 
-This is used in `src/main/resources/application.properties` for both chat and embedding requests.
-
-## ▶️ Getting Started
-
-### 1. Clone or extract the project
+### Project ID
 
 ```bash
-cd C:\JAYITA\PROJECTS\RAG
+GOOGLE_GENAI_PROJECT_ID
 ```
 
-### 2. Set your API key
+Both are used in `src/main/resources/application.properties` for both chat and embedding requests.
 
 **On Windows (PowerShell):**
 
 ```powershell
 $env:GEMINI_API_KEY = "your-api-key-here"
+$env:GOOGLE_GENAI_PROJECT_ID = "your-project-id-here"
 ```
 
 **On Windows (Command Prompt):**
 
 ```cmd
 set GEMINI_API_KEY=your-api-key-here
+set GOOGLE_GENAI_PROJECT_ID=your-project-id-here
 ```
 
 **On macOS/Linux:**
 
 ```bash
 export GEMINI_API_KEY=your-api-key-here
+export GOOGLE_GENAI_PROJECT_ID=your-project-id-here
 ```
 
-### 3. Run the application
+---
+
+## ▶️ Getting Started
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/JayitaSd/SRAI.git
+cd SRAI
+```
+
+
+### 2. Prepare your document
+
+Place your text document in `src/main/resources/data/` directory. The default example uses a sample file, but you can replace it with your own:
+
+- Legal documents
+- Research papers
+- Knowledge bases
+- Technical documentation
+- Any other text content
+
+### 3. Set your API key and Project ID
+
+**On Windows (PowerShell):**
+
+```powershell
+$env:GEMINI_API_KEY = "your-api-key-here"
+$env:GOOGLE_GENAI_PROJECT_ID = "your-project-id-here"
+```
+
+**On Windows (Command Prompt):**
+
+```cmd
+set GEMINI_API_KEY=your-api-key-here
+set GOOGLE_GENAI_PROJECT_ID=your-project-id-here
+```
+
+**On macOS/Linux:**
+
+```bash
+export GEMINI_API_KEY=your-api-key-here
+export GOOGLE_GENAI_PROJECT_ID=your-project-id-here
+```
+
+### 4. Run the application
 
 **Using Maven Wrapper (all platforms):**
 
@@ -165,7 +274,7 @@ export GEMINI_API_KEY=your-api-key-here
 mvnw.cmd spring-boot:run
 ```
 
-### 4. Verify it's running
+### 5. Verify it's running
 
 You should see output like:
 
@@ -190,21 +299,21 @@ GET /rag/models?message=your+question+here
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| message | string | Yes | Your question about the NBA content |
+| message | string | Yes | Your question about the document content |
 
 **Example:**
 ```bash
-curl "http://localhost:8080/rag/models?message=Who%20are%20the%20NBA%20champions%20mentioned%20in%20the%20document%3F"
+curl "http://localhost:8080/rag/models?message=What%20are%20the%20key%20points%20from%20the%20document%3F"
 ```
 
 **Response:**
 ```
-A text response grounded in the NBA document, or a message stating that the documents do not contain enough information.
+A text response grounded in your document, or a message stating that the documents do not contain enough information.
 ```
 
 **Example response:**
 ```
-The document mentions [NBA champions' information]. Based on the provided context...
+Based on the provided document, the key points are: [Relevant information extracted from your document]...
 ```
 
 ---
@@ -212,9 +321,12 @@ The document mentions [NBA champions' information]. Based on the provided contex
 ## 💡 Tips & Best Practices
 
 - **Vector Store Caching** — The vector store is persisted locally, so the app loads embeddings from disk on subsequent startups. This is much faster than regenerating them.
-- **Updating the Document** — If you modify `nba.txt`, you must delete the `vectorstore.json` file so the app regenerates embeddings from the new content on the next startup.
-- **Extending the Project** — You can easily add more documents by modifying `RagConfig.java` to load multiple text files and combine them in the vector store.
+- **Updating Your Document** — If you modify your document, delete the `vectorstore.json` file so the app regenerates embeddings from the new content on the next startup.
+- **Adding Multiple Documents** — You can easily add more documents by modifying `RagConfig.java` to load multiple text files and combine them in the vector store.
 - **Model Tuning** — Adjust the Gemini model or the max output tokens in `application.properties` to customize the response behavior.
+- **Custom System Prompts** — Edit the system instructions in `ModelController.java` to change how the model responds to your specific use case.
+
+---
 
 ## Troubleshooting
 
@@ -225,12 +337,28 @@ The document mentions [NBA champions' information]. Based on the provided contex
 - Check that your Google Gemini API key is valid and has the right permissions
 - Restart your terminal/IDE after setting the environment variable
 
+### Issue: "Project ID is not valid" or "Invalid project-id"
+
+**Solution:**
+- Verify that `GOOGLE_GENAI_PROJECT_ID` environment variable is set correctly
+- Ensure the Project ID matches your Google Cloud project
+- Check that the project has Gemini API enabled
+- Restart your terminal/IDE after setting the environment variable
+
 ### Issue: "Vector store file not found" or embeddings aren't loading
 
 **Solution:**
-- Ensure `nba.txt` exists in `src/main/resources/data/`
+- Ensure your document exists in `src/main/resources/data/`
 - Delete `vectorstore.json` to force regeneration
 - Check that the app has write permissions to the `src/main/resources/data/` directory
+
+### Issue: "Document not found" or content not being retrieved
+
+**Solution:**
+- Verify your document file is placed in `src/main/resources/data/`
+- Check the file name matches the configuration in `RagConfig.java`
+- Ensure the document is in plain text format (.txt)
+- Delete `vectorstore.json` and restart to reprocess the document
 
 ### Issue: Slow first startup
 
@@ -250,7 +378,7 @@ java -Dserver.port=8081 -jar target/RAG-0.0.1-SNAPSHOT.jar
 
 ## 🎯 In short
 
-This project is a compact, real-world example of how to build a document-grounded AI assistant with Spring Boot, Spring AI, and Gemini.
+This project is a compact, real-world example of how to build a document-grounded AI assistant with Spring Boot, Spring AI, and Gemini. Use it as a foundation for your own RAG applications with any type of document content you need.
 
 ## License
 

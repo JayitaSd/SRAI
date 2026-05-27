@@ -24,7 +24,7 @@ public class RagConfig {
     @Value("vectorstore.json")
     private String vectorStoreName;
 
-    @Value("classpath:/data/nba.txt")
+    @Value("classpath:/data/document.txt")
     private Resource documentResource;
 
     @Bean
