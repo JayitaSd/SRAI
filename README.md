@@ -9,6 +9,7 @@
 [![Spring AI](https://img.shields.io/badge/Spring%20AI-2.0.0--M7-00D084?style=for-the-badge&logo=spring&logoColor=white)](https://spring.io/projects/spring-ai)
 [![Maven](https://img.shields.io/badge/Maven-3.9+-6C63FF?style=for-the-badge&logo=apache-maven&logoColor=white)](https://maven.apache.org/)
 [![Google Gemini](https://img.shields.io/badge/Google%20Gemini-API-4285F4?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev/)
+[![Postman](https://img.shields.io/badge/Postman-Testing-FF6C37?style=for-the-badge&logo=postman&logoColor=white)](https://www.postman.com/)
 
 </div>
 
@@ -27,6 +28,7 @@ A modern **Retrieval-Augmented Generation (RAG)** application that demonstrates 
 - [Tech Stack](#-tech-stack)
 - [Getting Started](#-getting-started)
 - [API Reference](#api-reference)
+- [Testing with Postman](#-testing-with-postman)
 - [Project Structure](#-project-layout)
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
@@ -314,6 +316,55 @@ A text response grounded in your document, or a message stating that the documen
 **Example response:**
 ```
 Based on the provided document, the key points are: [Relevant information extracted from your document]...
+```
+
+---
+
+## 🧪 Testing with Postman
+
+[Postman](https://www.postman.com/) is a great tool for testing REST APIs. Follow these steps to test the SRAI endpoint:
+
+### 1. Download and Install Postman
+
+Visit [postman.com](https://www.postman.com/downloads/) to download Postman for your operating system.
+
+### 2. Create a New Request
+
+- Open Postman
+- Click **+ New** → **HTTP Request**
+- Set the request type to **GET**
+
+### 3. Enter the Endpoint URL
+
+In the URL field, enter:
+```
+http://localhost:8080/rag/models?message=YOUR_QUESTION_HERE
+```
+
+Or use the **Params** tab:
+- **Key:** `message`
+- **Value:** `What are the key points from the document?`
+
+### 4. Send the Request
+
+Click the **Send** button. You should receive a response containing the answer grounded in your document.
+
+### 5. Example Postman Workflow
+
+| Step | Action |
+|------|--------|
+| Method | `GET` |
+| URL | `http://localhost:8080/rag/models` |
+| Params (Key) | `message` |
+| Params (Value) | `What is discussed in the document?` |
+| Click | **Send** |
+
+### Alternative: Using cURL
+
+If you prefer command-line testing, use cURL:
+
+```bash
+curl -X GET "http://localhost:8080/rag/models?message=What%20is%20discussed%20in%20the%20document%3F"
 ```
 
 ---
