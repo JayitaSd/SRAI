@@ -379,7 +379,3 @@ java -Dserver.port=8081 -jar target/RAG-0.0.1-SNAPSHOT.jar
 ## 🎯 In short
 
 This project is a compact, real-world example of how to build a document-grounded AI assistant with Spring Boot, Spring AI, and Gemini. Use it as a foundation for your own RAG applications with any type of document content you need.
-
-## License
-
-No license has been specified yet.
