@@ -30,7 +30,7 @@ A modern **Retrieval-Augmented Generation (RAG)** application that demonstrates 
 - [API Reference](#api-reference)
 - [Testing with Postman](#-testing-with-postman)
 - [Project Structure](#-project-layout)
-- [Troubleshooting](#troubleshooting)
+- [Troubleshooting](#-troubleshooting)
 
 ---
 
