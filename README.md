@@ -446,7 +446,7 @@ These values are optimized for most document types but can be tuned in `RagConfi
 
 ---
 
-## ⚠️ Troubleshooting
+## Troubleshooting
 
 ### Issue: "API key is not valid"
 
