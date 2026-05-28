@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 @Configuration
 public class RagConfig {
@@ -37,10 +38,22 @@ public class RagConfig {
         } else {
             log.info("Vector Store File Does Not Exist, loading documents");
             TextReader textReader = new TextReader(documentResource);
-            textReader.getCustomMetadata().put("filename", "models.txt");
+            textReader.getCustomMetadata().put("filename", "document.txt");
             List<Document> documents = textReader.get();
-            TextSplitter textSplitter = TokenTextSplitter.builder().build();
-            List<Document> splitDocuments = textSplitter.apply(documents);
+            List<Document> cleanedDocs = documents.stream()
+                    .map(doc -> new Document(
+                            TextPreprocessor.cleanForEmbedding(doc.getText()),
+                            doc.getMetadata()
+                    ))
+                    .toList();
+            TextSplitter textSplitter = TokenTextSplitter.builder()
+                    .withChunkSize(750)
+                    .withMinChunkSizeChars(200)
+                    .withMinChunkLengthToEmbed(20)
+                    .withMaxNumChunks(10000)
+                    .withKeepSeparator(true)
+                    .build();
+            List<Document> splitDocuments = textSplitter.apply(cleanedDocs);
             simpleVectorStore.add(splitDocuments);
             simpleVectorStore.save(vectorStoreFile);
             log.info("Successfully added document chunks to vector store");
