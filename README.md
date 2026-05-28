@@ -31,12 +31,14 @@ A modern **Retrieval-Augmented Generation (RAG)** application that demonstrates 
 - [Testing with Postman](#-testing-with-postman)
 - [Project Structure](#-project-layout)
 - [Troubleshooting](#troubleshooting)
-- [License](#license)
 
 ---
 
 ## ✨ Key Features
 
+- **HyDE (Hypothetical Document Embeddings)** — Generates hypothetical answers to improve document retrieval accuracy, with intelligent fallback to standard retrieval
+- **Text Preprocessing** — Cleans and normalizes document content for better embedding and retrieval
+- **Advanced Chunking** — Splits documents using token-based splitting with configurable chunk sizes (750 tokens, min 200 chars)
 - **Document-Grounded Answers** — Gemini responds only from your provided documents, not from general knowledge
 - **Local Vector Store** — Embeddings are cached locally in `vectorstore.json`, so no recomputation on every startup
 - **Production-Ready Code** — Clean Spring Boot config, dependency injection, and best practices
@@ -51,21 +53,25 @@ A modern **Retrieval-Augmented Generation (RAG)** application that demonstrates 
 ```
 ┌─ User asks question
 │
-├─ App embeds the question
+├─ Generate Hypothetical Answer (HyDE)
 │
-├─ Vector store retrieves similar chunks
+├─ Embed hypothetical document → Search Vector Store
 │
-├─ Chunks sent as context to Gemini
+├─ Retrieve most relevant chunks
 │
-└─ Gemini responds using only the context
+├─ Send (Original Question + Retrieved Chunks) → Gemini
+│
+└─ Final grounded answer based on document chunks
 ```
 
 The endpoint at `GET /rag/models` accepts a message parameter and:
 
-1. translates your question into a vector embedding
-2. searches the vector store for matching document chunks
-3. passes those chunks as context to Gemini
-4. returns Gemini's grounded response based on the retrieved context
+1. **Generates a hypothetical answer** using HyDE to better understand what the answer might look like
+2. **Embeds the hypothetical document** and searches the vector store for matching chunks
+3. **Retrieves relevant document chunks** using semantic similarity
+4. **Falls back to standard retrieval** if HyDE response is invalid, searching with the original question instead
+5. **Passes retrieved chunks as context** to Gemini along with the original question
+6. **Returns a grounded response** based only on the retrieved document content
 
 ---
 
@@ -73,32 +79,50 @@ The endpoint at `GET /rag/models` accepts a message parameter and:
 
 ### Pipeline Overview
 
-![RAG Pipeline](src/main/resources/images/pipeline.png)
+![RAG Pipeline](src/main/resources/images/pipeline_updated.png)
 
-### 1️⃣ Document ingestion on startup
+### 1️⃣ Document ingestion & preprocessing on startup
 
-When the app starts, `RagConfig` checks whether a persisted vector store exists:
+When the app starts, `RagConfig` handles document loading and preprocessing:
 
 | Scenario | Action |
 |----------|--------|
 | Vector store exists | Load it immediately from `vectorstore.json` |
-| Vector store missing | Read document → tokenize → embed → persist |
+| Vector store missing | Read → preprocess → chunk → embed → persist |
 
 If the vector store is being built for the first time:
 
-1. Read your document from `src/main/resources/data/document.txt` (currently using an example document)
-2. Split it into smaller, overlapping chunks using token-based splitting
-3. Generate embeddings for each chunk using Gemini's embedding model
-4. Store the embeddings locally in `vectorstore.json`
+1. **Read** — Load your document from `src/main/resources/data/document.txt`
+2. **Preprocess** — Clean and normalize text using `TextPreprocessor` (removes special characters, normalizes whitespace, converts to lowercase)
+3. **Chunk** — Split into overlapping chunks using `TokenTextSplitter`:
+   - Chunk size: 750 tokens
+   - Minimum chunk size: 200 characters
+   - Minimum length to embed: 20 characters
+4. **Embed** — Generate embeddings for each chunk using Gemini's embedding model
+5. **Persist** — Store the embeddings locally in `vectorstore.json`
 
-### 2️⃣ Question answering flow
+### 2️⃣ Hypothetical Document Embeddings (HyDE) flow
 
 When you call `GET /rag/models?message=your_question`:
 
-1. **Embed** — Your question is converted to a vector
-2. **Retrieve** — The vector store finds the k most similar document chunks
-3. **Augment** — Those chunks are injected into the prompt as context
-4. **Generate** — Gemini reads the context and answers your question
+```
+User Question
+     ↓
+Generate Hypothetical Answer (HyDE)
+     ↓
+Embed hypotheticalDoc → Search Vector Store → Get relevant chunks
+     ↓
+Send (Original Question + Retrieved Chunks) → Gemini → Final Answer
+```
+
+**Step-by-step:**
+
+1. **HyDE Generation** — The system generates a detailed hypothetical answer to your question using Gemini
+2. **Semantic Search** — The hypothetical document is embedded and used to find the most semantically similar chunks from the vector store
+3. **Relevance Validation** — The initial HyDE response is validated for quality
+4. **Fallback Mechanism** — If HyDE response is invalid (empty, contains "I don't know", or too short), the system falls back to standard retrieval using the original question
+5. **Context Injection** — Retrieved chunks are combined with your original question as context
+6. **Final Answer** — Gemini generates the final response using only the retrieved context
 
 The system prompt ensures the model:
 - answers only from the provided context
@@ -131,8 +155,9 @@ SRAI/                                              # Root directory
 │   │   ├── java/
 │   │   │   └── com/example/rag/                 # Application Source Code
 │   │   │       ├── RagApplication.java          # Spring Boot application entry point
-│   │   │       ├── RagConfig.java               # Vector store & document loading config
-│   │   │       └── ModelController.java         # REST endpoint handler (@RestController)
+│   │   │       ├── RagConfig.java               # Vector store, document loading & chunking config
+│   │   │       ├── ModelController.java         # REST endpoint handler with HyDE logic
+│   │   │       └── TextPreprocessor.java        # Text cleaning & preprocessing utilities
 │   │   │
 │   │   └── resources/
 │   │       ├── application.properties           # Spring Boot & Gemini API configuration
@@ -159,11 +184,20 @@ SRAI/                                              # Root directory
 
 | Directory | Purpose |
 |-----------|---------|
-| `src/main/java/com/example/rag/` | Core application logic - controllers, config, main app class |
+| `src/main/java/com/example/rag/` | Core application logic - controllers, config, preprocessing, main app class |
 | `src/main/resources/data/` | Your document files (text files) and generated vector store |
 | `src/main/resources/images/` | Diagrams and visual documentation |
 | `src/test/java/com/example/rag/` | Unit and integration tests |
 | `target/` | Compiled classes and build artifacts (generated by Maven) |
+
+### Key Java Classes
+
+| Class | Responsibility |
+|-------|-----------------|
+| `RagApplication.java` | Spring Boot application bootstrap |
+| `RagConfig.java` | Vector store initialization, document loading, text splitting & chunking |
+| `ModelController.java` | REST endpoint `/rag/models` with HyDE retrieval logic and fallback mechanism |
+| `TextPreprocessor.java` | Text cleaning, normalization, and preprocessing utilities |
 
 ---
 
@@ -325,17 +359,13 @@ Based on the provided document, the key points are: [Relevant information extrac
 
 [Postman](https://www.postman.com/) is a great tool for testing REST APIs. Follow these steps to test the SRAI endpoint:
 
-### 1. Download and Install Postman
-
-Visit [postman.com](https://www.postman.com/downloads/) to download Postman for your operating system.
-
-### 2. Create a New Request
+### 1. Create a New Request
 
 - Open Postman
 - Click **+ New** → **HTTP Request**
 - Set the request type to **GET**
 
-### 3. Enter the Endpoint URL
+### 2. Enter the Endpoint URL
 
 In the URL field, enter:
 ```
@@ -346,11 +376,11 @@ Or use the **Params** tab:
 - **Key:** `message`
 - **Value:** `What are the key points from the document?`
 
-### 4. Send the Request
+### 3. Send the Request
 
 Click the **Send** button. You should receive a response containing the answer grounded in your document.
 
-### 5. Example Postman Workflow
+### 4. Example Postman Workflow
 
 | Step | Action |
 |------|--------|
@@ -371,6 +401,42 @@ curl -X GET "http://localhost:8080/rag/models?message=What%20is%20discussed%20in
 ---
 
 ## 💡 Tips & Best Practices
+
+### Understanding HyDE (Hypothetical Document Embeddings)
+
+HyDE is an advanced retrieval technique that improves accuracy:
+
+1. **Why HyDE?** — Instead of embedding your question directly, HyDE generates what an ideal answer might look like, then searches based on that. This often finds better matches because answers are more semantically similar to each other than questions are.
+
+2. **Fallback Mechanism** — If the HyDE-generated response contains phrases like "I don't have enough information" or is too short, the system automatically falls back to standard retrieval using your original question. This ensures robustness.
+
+3. **Configuration** — You can adjust HyDE behavior in `ModelController.java`:
+   - Modify the `hydePrompt` to change how hypothetical answers are generated
+   - Adjust `topK` (currently 10) to retrieve more or fewer chunks
+   - Change `similarityThreshold` (currently 0.55) for stricter or looser matching
+
+### Text Preprocessing
+
+The `TextPreprocessor` class handles document cleaning:
+
+1. **Normalization** — Converts to lowercase and removes special characters (keeps only alphanumeric and spaces)
+2. **Whitespace Normalization** — Collapses multiple spaces into single spaces
+3. **Trimming** — Removes leading/trailing whitespace
+
+This ensures consistent embedding quality and better retrieval accuracy.
+
+### Document Chunking Strategy
+
+The `TokenTextSplitter` in `RagConfig` uses these settings:
+
+- **Chunk Size**: 750 tokens — balances context window size with specificity
+- **Min Chunk Size**: 200 characters — ensures chunks have meaningful content
+- **Min Length to Embed**: 20 characters — filters out very small fragments
+- **Keep Separator**: `true` — preserves chunk boundaries for better context
+
+These values are optimized for most document types but can be tuned in `RagConfig.java` for your specific use case.
+
+### General Best Practices
 
 - **Vector Store Caching** — The vector store is persisted locally, so the app loads embeddings from disk on subsequent startups. This is much faster than regenerating them.
 - **Updating Your Document** — If you modify your document, delete the `vectorstore.json` file so the app regenerates embeddings from the new content on the next startup.
