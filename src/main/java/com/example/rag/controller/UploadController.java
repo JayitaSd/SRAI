@@ -3,11 +3,12 @@ package com.example.rag.controller;
 import com.example.rag.model.SessionData;
 
 import com.example.rag.service.DocExtractService;
-import com.example.rag.service.GeminiExtractService;
 
+import com.example.rag.service.OcrService;
 import com.example.rag.service.SessionStore;
 import com.example.rag.util.FileValidationUtil;
 import com.example.rag.util.TextPreprocessor;
+import net.sourceforge.tess4j.TesseractException;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.transformer.splitter.TextSplitter;
@@ -26,18 +27,18 @@ import java.util.UUID;
 @RequestMapping("/api")
 public class UploadController {
 
-    private static final Set<String> GEMINI_EXTRACT_TYPES = Set.of("png", "jpg", "jpeg");
+    private static final Set<String> OCR_TYPES = Set.of("png", "jpg", "jpeg");
 
-    private final GeminiExtractService geminiExtractService;
+    private final OcrService ocrService;
     private final DocExtractService docExtractService;
     private final EmbeddingModel embeddingModel;
     private final SessionStore sessionStore;
 
-    public UploadController(GeminiExtractService geminiExtractService,
+    public UploadController(OcrService ocrService,
                             DocExtractService docExtractService,
                             EmbeddingModel embeddingModel,
                             SessionStore sessionStore) {
-        this.geminiExtractService = geminiExtractService;
+        this.ocrService = ocrService;
         this.docExtractService = docExtractService;
         this.embeddingModel = embeddingModel;
         this.sessionStore = sessionStore;
@@ -55,16 +56,12 @@ public class UploadController {
             String filename = file.getOriginalFilename();
             String ext = filename.substring(filename.lastIndexOf('.') + 1).toLowerCase();
 
-            String rawText = GEMINI_EXTRACT_TYPES.contains(ext)
-                    ? geminiExtractService.extractText(file)
-                    : docExtractService.extractText(file);
-
+            String rawText = OCR_TYPES.contains(ext) ? ocrService.extractText(file) : docExtractService.extractText(file);
             if (rawText == null || rawText.isBlank()) {
                 return ResponseEntity.badRequest().body(Map.of("error", "No extractable text found in document."));
             }
 
             String cleaned = TextPreprocessor.cleanForEmbedding(rawText);
-
             Document document = new Document(cleaned, Map.of("filename", filename));
 
             TextSplitter splitter = TokenTextSplitter.builder()
@@ -76,7 +73,6 @@ public class UploadController {
                     .build();
 
             List<Document> chunks = splitter.apply(List.of(document));
-
             SimpleVectorStore vectorStore = SimpleVectorStore.builder(embeddingModel).build();
             vectorStore.add(chunks);
 
@@ -89,7 +85,11 @@ public class UploadController {
                     "chunkCount", chunks.size()
             ));
 
-        } catch (Exception e) {
+        } catch (TesseractException e) {
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "OCR failed: " + e.getMessage()));
+        }
+        catch (Exception e) {
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", "Failed to process document: " + e.getMessage()));
         }

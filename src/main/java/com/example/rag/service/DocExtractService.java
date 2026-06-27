@@ -3,6 +3,8 @@ package com.example.rag.service;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.apache.poi.hwpf.HWPFDocument;
+import org.apache.poi.hwpf.extractor.WordExtractor;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
 import org.springframework.stereotype.Service;
@@ -36,8 +38,13 @@ public class DocExtractService {
             }
         }
 
+        if (ext.equals("doc")) {
+            try (HWPFDocument doc = new HWPFDocument(file.getInputStream());
+                 WordExtractor extractor = new WordExtractor(doc)) {
+                return extractor.getText();
+            }
+        }
+
         throw new IllegalArgumentException("Unsupported extension for local extraction: " + ext);
-        // Note: legacy .doc (binary) needs HWPFDocument/WordExtractor from poi-scratchpad
-        // if you need to support it — flag if so, it's a separate POI dependency.
     }
 }

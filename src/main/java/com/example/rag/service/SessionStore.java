@@ -11,7 +11,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class SessionStore {
 
-    // 30 min idle timeout — tune as needed
     private static final Duration SESSION_TTL = Duration.ofMinutes(30);
 
     private final Map<String, SessionData> sessions = new ConcurrentHashMap<>();
@@ -31,8 +30,6 @@ public class SessionStore {
     public void remove(String sessionId) {
         sessions.remove(sessionId);
     }
-
-    /** Called by the scheduled cleanup task. */
     public void evictIdleSessions() {
         Instant cutoff = Instant.now().minus(SESSION_TTL);
         sessions.entrySet().removeIf(e -> e.getValue().getLastAccessed().isBefore(cutoff));
