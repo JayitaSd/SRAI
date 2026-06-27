@@ -9,195 +9,166 @@
 [![Spring AI](https://img.shields.io/badge/Spring%20AI-2.0.0--M7-00D084?style=for-the-badge&logo=spring&logoColor=white)](https://spring.io/projects/spring-ai)
 [![Maven](https://img.shields.io/badge/Maven-3.9+-6C63FF?style=for-the-badge&logo=apache-maven&logoColor=white)](https://maven.apache.org/)
 [![Google Gemini](https://img.shields.io/badge/Google%20Gemini-API-4285F4?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev/)
-[![Postman](https://img.shields.io/badge/Postman-Testing-FF6C37?style=for-the-badge&logo=postman&logoColor=white)](https://www.postman.com/)
+[![Apache PDFBox](https://img.shields.io/badge/PDFBox-3.0.5-E74C3C?style=for-the-badge&logo=apache&logoColor=white)](https://pdfbox.apache.org/)
+[![Apache POI](https://img.shields.io/badge/Apache%20POI-5.4.1-E74C3C?style=for-the-badge&logo=apache&logoColor=white)](https://poi.apache.org/)
+[![Tess4J](https://img.shields.io/badge/Tess4J-5.11.0-2ECC71?style=for-the-badge&logoColor=white)](https://tess4j.sourceforge.net/)
 
 </div>
 
 ---
 
-> 🎯 Ask questions about your documents and get answers grounded in the provided content — not in random outside knowledge.
+> 🎯 Upload any document and ask questions — get answers grounded in the provided content, not in random outside knowledge.
 
-A modern **Retrieval-Augmented Generation (RAG)** application that demonstrates how to build document-grounded AI assistants. This project combines **Spring Boot**, **Spring AI**, and **Google Gemini** to create a system that retrieves relevant document chunks and answers questions using only the provided context.
+A modern **Retrieval-Augmented Generation (RAG)** application that demonstrates how to build document-grounded AI assistants. This project combines **Spring Boot**, **Spring AI**, and **Google Gemini** to create a system where users upload documents through a web UI, which are then extracted, embedded, and queried using only the provided context.
 
 ---
 
 ## 📚 Table of Contents
 
 - [Key Features](#-key-features)
+- [What It Does](#-what-it-does)
 - [How It Works](#-how-it-works)
 - [Tech Stack](#-tech-stack)
+- [Requirements](#-requirements)
+- [Project Layout](#-project-layout)
 - [Getting Started](#-getting-started)
-- [API Reference](#api-reference)
-- [Testing with Postman](#-testing-with-postman)
-- [Project Structure](#-project-layout)
+- [API Endpoints](#-api-endpoints)
+- [Tips & Best Practices](#-tips--best-practices)
 - [Troubleshooting](#-troubleshooting)
 
 ---
 
 ## ✨ Key Features
 
-- **HyDE (Hypothetical Document Embeddings)** — Generates hypothetical answers to improve document retrieval accuracy, with intelligent fallback to standard retrieval
-- **Text Preprocessing** — Cleans and normalizes document content for better embedding and retrieval
-- **Advanced Chunking** — Splits documents using token-based splitting with configurable chunk sizes (750 tokens, min 200 chars)
-- **Document-Grounded Answers** — Gemini responds only from your provided documents, not from general knowledge
-- **Local Vector Store** — Embeddings are cached locally in `vectorstore.json`, so no recomputation on every startup
-- **Production-Ready Code** — Clean Spring Boot config, dependency injection, and best practices
-- **Easy to Extend** — Simple to add more documents or swap embeddings/chat models
-- **Flexible Content** — Works with any text document (legal docs, research papers, knowledge bases, etc.)
-- **No External Vector Databases** — Uses only Spring AI and Google Gemini APIs
+- **Multi-Format Document Support:** Upload `.txt`, `.pdf`, `.doc`, `.docx`, `.png`, `.jpg`, `.jpeg` files directly through the browser
+- **Local Text Extraction:** PDF text extracted via Apache PDFBox, Word documents via Apache POI — no Gemini tokens spent on extraction
+- **OCR for Images:** PNG/JPG/JPEG files processed locally with Tess4J (Tesseract) again, no Gemini tokens used
+- **Session-Based Architecture:** Each upload creates an isolated vector store per session with a 30-minute idle TTL and automatic cleanup
+- **HyDE (Hypothetical Document Embeddings):** Generates a hypothetical answer to improve retrieval accuracy, with intelligent fallback to standard retrieval
+- **Advanced Chunking:** Token-based splitting with configurable chunk sizes (750 tokens, min 200 chars)
+- **Document-Grounded Answers:** Gemini responds only from your uploaded document, never from external knowledge
+- **Built-in Web UI:** Two-panel interface served directly from Spring Boot - no separate frontend server needed
+- **No External Vector Databases:** Uses Spring AI's `SimpleVectorStore` entirely in memory per session
+- **File Validation:** Size limit (10MB), extension whitelist, and content-type checks on every upload
 
 ---
 
-## 🚀 What it does
+## 🚀 What It Does
 
 ```
-┌─ User asks question
+┌─ User uploads document via browser
+│
+├─ Backend extracts text (PDFBox / POI / Tess4J OCR — no Gemini tokens)
+│
+├─ Text is cleaned, chunked, embedded → stored in a session-scoped VectorStore
+│
+├─ User asks a question in the chat UI
 │
 ├─ Generate Hypothetical Answer (HyDE)
 │
-├─ Embed hypothetical document → Search Vector Store
+├─ Embed hypothetical document → Search session VectorStore
 │
 ├─ Retrieve most relevant chunks
 │
 ├─ Send (Original Question + Retrieved Chunks) → Gemini
 │
-└─ Final grounded answer based on document chunks
+└─ Final grounded answer displayed in chat
 ```
 
-The endpoint at `GET /rag/models` accepts a message parameter and:
+The frontend at `http://localhost:8080` lets you:
 
-1. **Generates a hypothetical answer** using HyDE to better understand what the answer might look like
-2. **Embeds the hypothetical document** and searches the vector store for matching chunks
-3. **Retrieves relevant document chunks** using semantic similarity
-4. **Falls back to standard retrieval** if HyDE response is invalid, searching with the original question instead
-5. **Passes retrieved chunks as context** to Gemini along with the original question
-6. **Returns a grounded response** based only on the retrieved document content
+1. **Upload** any supported document (drag & drop or browse)
+2. **Process** it  extraction, chunking, and embedding happen server-side
+3. **Chat** ask questions and get answers grounded strictly in your document
+4. **Session expires** after 30 minutes of inactivity just re-upload to start fresh
 
 ---
 
-## 🧠 How it works
+## 🧠 How It Works
 
 ### Pipeline Overview
 
-![RAG Pipeline](src/main/resources/images/pipeline_updated.png)
+![RAG Pipeline](src/main/resources/images/Pipeline.png)
 
-### 1️⃣ Document ingestion & preprocessing on startup
+### 1️⃣ Document Upload & Text Extraction
 
-When the app starts, `RagConfig` handles document loading and preprocessing:
+When a file is uploaded to `POST /api/upload`, the backend routes it to the correct extractor:
 
-| Scenario | Action |
-|----------|--------|
-| Vector store exists | Load it immediately from `vectorstore.json` |
-| Vector store missing | Read → preprocess → chunk → embed → persist |
+| File Type | Extractor                                             | Token Cost |
+|-----------|-------------------------------------------------------|------------|
+| `.txt` | `DocExtractService` - plain UTF-8 read                | None |
+| `.pdf` | `DocExtractService` - Apache PDFBox `PDFTextStripper` | None |
+| `.doc` | `DocExtractService` - Apache POI `HWPFDocument`       | None |
+| `.docx` | `DocExtractService` - Apache POI `XWPFDocument`       | None |
+| `.png` / `.jpg` / `.jpeg` | `OcrService` - Tess4J (Tesseract OCR)                 | None |
 
-If the vector store is being built for the first time:
+### 2️⃣ Preprocessing, Chunking & Embedding
 
-1. **Read** — Load your document from `src/main/resources/data/document.txt`
-2. **Preprocess** — Clean and normalize text using `TextPreprocessor` (removes special characters, normalizes whitespace, converts to lowercase)
-3. **Chunk** — Split into overlapping chunks using `TokenTextSplitter`:
-   - Chunk size: 750 tokens
-   - Minimum chunk size: 200 characters
-   - Minimum length to embed: 20 characters
-4. **Embed** — Generate embeddings for each chunk using Gemini's embedding model
-5. **Persist** — Store the embeddings locally in `vectorstore.json`
+After extraction:
 
-### 2️⃣ Hypothetical Document Embeddings (HyDE) flow
+1. **Preprocess:**  Normalize whitespace and trim using `TextPreprocessor`
+2. **Chunk:**  Split into token-based chunks using `TokenTextSplitter`:
+    - Chunk size: 750 tokens
+    - Minimum chunk size: 200 characters
+    - Minimum length to embed: 20 characters
+3. **Embed:** Generate embeddings for each chunk using Gemini's embedding model
+4. **Store:**  Load into a `SimpleVectorStore` scoped to this session's UUID
 
-When you call `GET /rag/models?message=your_question`:
+A `sessionId` is returned to the frontend and sent with every subsequent chat request.
+
+### 3️⃣ HyDE Chat Flow
+
+When you send a message to `POST /api/chat`:
 
 ```
 User Question
      ↓
-Generate Hypothetical Answer (HyDE)
+Generate Hypothetical Answer (HyDE) using Gemini
      ↓
-Embed hypotheticalDoc → Search Vector Store → Get relevant chunks
+Embed hypotheticalDoc → Search Session VectorStore → Get relevant chunks
      ↓
 Send (Original Question + Retrieved Chunks) → Gemini → Final Answer
+     ↓
+If HyDE response invalid → Fallback: search with original question directly
 ```
 
 **Step-by-step:**
 
-1. **HyDE Generation** — The system generates a detailed hypothetical answer to your question using Gemini
-2. **Semantic Search** — The hypothetical document is embedded and used to find the most semantically similar chunks from the vector store
-3. **Relevance Validation** — The initial HyDE response is validated for quality
-4. **Fallback Mechanism** — If HyDE response is invalid (empty, contains "I don't know", or too short), the system falls back to standard retrieval using the original question
-5. **Context Injection** — Retrieved chunks are combined with your original question as context
-6. **Final Answer** — Gemini generates the final response using only the retrieved context
+1. **HyDE Generation:** Gemini generates a detailed hypothetical answer to understand what the answer might look like
+2. **Semantic Search:** The hypothetical document is embedded and used to find the most semantically similar chunks from the session's vector store
+3. **Relevance Validation:** The HyDE response is checked for quality (not empty, doesn't contain "I don't know", length > 25 chars)
+4. **Fallback Mechanism:** If HyDE fails validation, the system falls back to standard retrieval using the original question
+5. **Context Injection:** Retrieved chunks are passed as context alongside the original question
+6. **Final Answer:** Gemini generates the response using only the retrieved context
 
 The system prompt ensures the model:
-- answers only from the provided context
-- avoids using external knowledge
-- admits when the documents don't contain enough information
+- Answers only from the provided context
+- Avoids using external knowledge
+- Admits when the documents don't contain enough information
+
+### 4️⃣ Session Management
+
+- Each upload creates a new `SessionData` containing a `VectorStore` and chat history
+- Sessions are stored in a `ConcurrentHashMap` inside `SessionStore`
+- A scheduled task runs every 10 minutes to evict sessions idle for over 30 minutes
+- Uploading a new document creates a fresh session old one is abandoned
 
 ---
 
-## 🛠️ Tech stack
+## 🛠️ Tech Stack
 
 - **Java 21**
 - **Spring Boot 4.0.6**
 - **Spring AI 2.0.0-M7**
 - **Spring Web MVC**
 - **Google GenAI / Gemini**
-  - chat model: `gemini-2.5-flash`
-  - embedding model: `gemini-embedding-001`
-- **SimpleVectorStore** for local persistence
-- **PostMan**
-
----
-
-## 📁 Project layout
-
-```
-SRAI/                                              # Root directory
-│
-├── src/
-│   ├── main/
-│   │   ├── java/
-│   │   │   └── com/example/rag/                 # Application Source Code
-│   │   │       ├── RagApplication.java          # Spring Boot application entry point
-│   │   │       ├── RagConfig.java               # Vector store, document loading & chunking config
-│   │   │       ├── ModelController.java         # REST endpoint handler with HyDE logic
-│   │   │       └── TextPreprocessor.java        # Text cleaning & preprocessing utilities
-│   │   │
-│   │   └── resources/
-│   │       ├── application.properties           # Spring Boot & Gemini API configuration
-│   │       ├── data/                            # Document storage directory
-│   │       │   ├── document.txt                 # Example text document for retrieval
-│   │       │   └── vectorstore.json            # Persisted vector embeddings (auto-generated)
-│   │       │
-│   │       └── images/                          # Visual assets & diagrams
-│   │           └── pipeline.png                 # RAG pipeline architecture diagram
-│   │
-│   └── test/
-│       └── java/
-│           └── com/example/rag/
-│               └── RagApplicationTests.java    # Unit tests for the application
-│
-├── pom.xml                                       # Maven project configuration & dependencies
-├── mvnw & mvnw.cmd                              # Maven Wrapper scripts (Linux/macOS & Windows)
-├── README.md                                     # Project documentation
-└── .gitignore                                    # Git ignore rules
-
-```
-
-### Key Directories Explained
-
-| Directory | Purpose |
-|-----------|---------|
-| `src/main/java/com/example/rag/` | Core application logic - controllers, config, preprocessing, main app class |
-| `src/main/resources/data/` | Your document files (text files) and generated vector store |
-| `src/main/resources/images/` | Diagrams and visual documentation |
-| `src/test/java/com/example/rag/` | Unit and integration tests |
-| `target/` | Compiled classes and build artifacts (generated by Maven) |
-
-### Key Java Classes
-
-| Class | Responsibility |
-|-------|-----------------|
-| `RagApplication.java` | Spring Boot application bootstrap |
-| `RagConfig.java` | Vector store initialization, document loading, text splitting & chunking |
-| `ModelController.java` | REST endpoint `/rag/models` with HyDE retrieval logic and fallback mechanism |
-| `TextPreprocessor.java` | Text cleaning, normalization, and preprocessing utilities |
+    - Chat model: `gemini-2.5-flash`
+    - Embedding model: `gemini-embedding-001`
+- **Apache PDFBox 3.0.5:** local PDF text extraction
+- **Apache POI 5.4.1:** local `.doc` / `.docx` text extraction
+- **Tess4J 5.11.0:** local OCR for image files (wraps Tesseract)
+- **SimpleVectorStore:** in-memory per-session vector store
+- **JS + CSS:** frontend UI served from `resources/static`
 
 ---
 
@@ -207,29 +178,22 @@ To run the app, you'll need:
 
 - **JDK 21**
 - **Maven** or the included Maven Wrapper
-- a valid **Google Gemini API key**
-- a valid **Google GenAI Project ID**
-- internet access for Gemini API calls
+- A valid **Google Gemini API key**
+- A valid **Google GenAI Project ID**
+- **Tesseract OCR** installed locally (required for image/OCR support)
+    - Windows: download installer from [UB Mannheim](https://github.com/UB-Mannheim/tesseract/wiki)
+    - macOS: `brew install tesseract`
+    - Linux: `apt install tesseract-ocr`
+- `eng.traineddata` present in your Tesseract `tessdata` folder (included with the installer)
+- Internet access for Gemini API calls (chat + embedding only)
 
 ---
 
 ## 🔧 Configuration
 
-The app requires two environment variables for Google Gemini API access:
+The app requires two environment variables for Google Gemini API access, and one property for Tesseract:
 
-### API Key
-
-```bash
-GEMINI_API_KEY
-```
-
-### Project ID
-
-```bash
-GOOGLE_GENAI_PROJECT_ID
-```
-
-Both are used in `src/main/resources/application.properties` for both chat and embedding requests.
+### Environment Variables
 
 **On Windows (PowerShell):**
 
@@ -251,6 +215,95 @@ set GOOGLE_GENAI_PROJECT_ID=your-project-id-here
 export GEMINI_API_KEY=your-api-key-here
 export GOOGLE_GENAI_PROJECT_ID=your-project-id-here
 ```
+
+### application.properties
+
+```properties
+# Tesseract OCR
+tess4j.datapath=C:/Program Files/Tesseract-OCR/tessdata
+tess4j.language=eng
+```
+
+Update `tess4j.datapath` to match your Tesseract installation path. Use forward slashes even on Windows.
+
+---
+
+## 📁 Project Layout
+
+```
+SRAI/                                                   # Root directory
+│
+├── src/
+│   ├── main/
+│   │   ├── java/
+│   │   │   └── com/example/rag/                        # Application source code
+│   │   │       ├── RagApplication.java                 # Spring Boot entry point
+│   │   │       │
+│   │   │       ├── controller/
+│   │   │       │   ├── ModelController.java            # POST /api/chat — HyDE RAG logic
+│   │   │       │   └── UploadController.java           # POST /api/upload — file intake & embedding
+│   │   │       │
+│   │   │       ├── model/
+│   │   │       │   ├── SessionData.java                # Per-session VectorStore + chat history
+│   │   │       │   └── ChatMessage.java                # Message value object (role, content, timestamp)
+│   │   │       │
+│   │   │       ├── service/
+│   │   │       │   ├── DocExtractService.java          # Text extraction — txt, pdf, doc, docx
+│   │   │       │   ├── OcrService.java                 # OCR extraction — png, jpg, jpeg via Tess4J
+│   │   │       │   └── SessionStore.java               # ConcurrentHashMap session registry + TTL eviction
+│   │   │       │
+│   │   │       ├── config/
+│   │   │       │   └── SessionCleanUpScheduler.java    # Scheduled idle session eviction (every 10 min)
+│   │   │       │
+│   │   │       └── util/
+│   │   │           ├── TextPreprocessor.java           # Whitespace normalization & text cleaning
+│   │   │           └── FileValidationUtil.java         # Extension + content-type + size validation
+│   │   │
+│   │   └── resources/
+│   │       ├── application.properties                  # Spring Boot, Gemini & Tesseract configuration
+│   │       ├── static/                                 # Frontend served by Spring Boot
+│   │       │   ├── index.html                          # Two-panel RAG chat UI
+│   │       │   ├── index.css                           # Dark theme styles
+│   │       │   └── index.js                            # Upload + chat fetch logic
+│   │       └── images/
+│   │           └── pipeline_updated.png                # RAG pipeline architecture diagram
+│   │
+│   └── test/
+│       └── java/
+│           └── com/example/rag/
+│               └── RagApplicationTests.java            # Application tests
+│
+├── pom.xml                                             # Maven dependencies & build config
+├── mvnw & mvnw.cmd                                     # Maven Wrapper scripts
+├── README.md                                           # Project documentation
+└── .gitignore                                          # Git ignore rules
+```
+
+### Key Java Classes
+
+| Class | Responsibility |
+|-------|----------------|
+| `RagApplication.java` | Spring Boot bootstrap |
+| `UploadController.java` | Handles file upload, routes to extractor, chunks, embeds, creates session |
+| `ModelController.java` | Handles chat — HyDE retrieval, fallback, session lookup |
+| `DocExtractService.java` | Extracts text from `.txt`, `.pdf`, `.doc`, `.docx` locally |
+| `OcrService.java` | Extracts text from images via Tess4J OCR |
+| `SessionStore.java` | Thread-safe session registry with idle TTL eviction |
+| `SessionData.java` | Holds per-session `VectorStore` and chat history |
+| `FileValidationUtil.java` | Validates file size, extension, and content type |
+| `TextPreprocessor.java` | Normalizes whitespace and cleans extracted text |
+| `SessionCleanUpScheduler.java` | Scheduled task — evicts idle sessions every 10 minutes |
+
+### Key Directories
+
+| Directory | Purpose                                  |
+|-----------|------------------------------------------|
+| `src/main/java/.../controller/` | REST endpoints upload and chat           |
+| `src/main/java/.../service/` | Text extraction services and session store |
+| `src/main/java/.../model/` | Session and message value objects        |
+| `src/main/java/.../config/` | Scheduler configuration                  |
+| `src/main/java/.../util/` | File validation and text preprocessing   |
+| `src/main/resources/static/` | Frontend HTML/CSS/JS served by Spring Boot |
 
 ---
 
@@ -263,41 +316,50 @@ git clone https://github.com/JayitaSd/SRAI.git
 cd SRAI
 ```
 
+### 2. Install Tesseract OCR
 
-### 2. Prepare your document
+**Windows** — Download and run the installer from [UB Mannheim](https://github.com/UB-Mannheim/tesseract/wiki). Note the install path.
 
-Place your text document in `src/main/resources/data/` directory. The default example uses a sample file, but you can replace it with your own:
+**macOS:**
+```bash
+brew install tesseract
+```
 
-- Legal documents
-- Research papers
-- Knowledge bases
-- Technical documentation
-- Any other text content
+**Linux:**
+```bash
+apt install tesseract-ocr
+```
 
-### 3. Set your API key and Project ID
+### 3. Configure application.properties
 
-**On Windows (PowerShell):**
+Update `src/main/resources/application.properties` with your Tesseract path:
 
+```properties
+tess4j.datapath=C:/Program Files/Tesseract-OCR/tessdata
+tess4j.language=eng
+```
+
+### 4. Set your API credentials
+
+**Windows (PowerShell):**
 ```powershell
 $env:GEMINI_API_KEY = "your-api-key-here"
 $env:GOOGLE_GENAI_PROJECT_ID = "your-project-id-here"
 ```
 
-**On Windows (Command Prompt):**
-
+**Windows (Command Prompt):**
 ```cmd
 set GEMINI_API_KEY=your-api-key-here
 set GOOGLE_GENAI_PROJECT_ID=your-project-id-here
 ```
 
-**On macOS/Linux:**
-
+**macOS/Linux:**
 ```bash
 export GEMINI_API_KEY=your-api-key-here
 export GOOGLE_GENAI_PROJECT_ID=your-project-id-here
 ```
 
-### 4. Run the application
+### 5. Run the application
 
 **Using Maven Wrapper (all platforms):**
 
@@ -305,97 +367,97 @@ export GOOGLE_GENAI_PROJECT_ID=your-project-id-here
 ./mvnw spring-boot:run
 ```
 
-**Or on Windows using the batch script:**
+**On Windows using the batch script:**
 
 ```powershell
 mvnw.cmd spring-boot:run
 ```
 
-### 5. Verify it's running
+### 6. Open the UI
 
-You should see output like:
+Navigate to `http://localhost:8080` in your browser. You should see the SRAI document chat interface.
 
 ```
-2026-05-27 10:15:23.123  INFO 12345 --- [main] com.example.rag.RagApplication          : Started RagApplication in 5.234 seconds
+2026-05-27 10:15:23.123  INFO 12345 --- [main] com.example.rag.RagApplication : Started RagApplication in 5.234 seconds
 ```
-
-The app will be available at `http://localhost:8080`
 
 ---
 
-## API Reference
+## 🔌 API Endpoints
 
-### Endpoint: Ask a question
+All endpoints are served at `http://localhost:8080`.
+
+---
+
+### `POST /api/upload` — Upload & process a document
+
+Accepts a multipart file, extracts text, chunks it, generates embeddings, and returns a session ID.
 
 **Request:**
 ```http
-GET /rag/models?message=your+question+here
+POST /api/upload
+Content-Type: multipart/form-data
+
+file: <your file>
 ```
 
-**Parameters:**
+**Supported file types:** `.txt`, `.pdf`, `.doc`, `.docx`, `.png`, `.jpg`, `.jpeg`
+**Max file size:** 10MB
 
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| message | string | Yes | Your question about the document content |
+**Success response `200`:**
+```json
+{
+  "sessionId": "f3a7c821-91b4-4d3e-b3f1-abc123def456",
+  "status": "ready",
+  "chunkCount": 42
+}
+```
 
-**Example:**
+**Error response `400`:**
+```json
+{
+  "error": "File exceeds 10MB limit."
+}
+```
+
+**Example (cURL):**
 ```bash
-curl "http://localhost:8080/rag/models?message=What%20are%20the%20key%20points%20from%20the%20document%3F"
-```
-
-**Response:**
-```
-A text response grounded in your document, or a message stating that the documents do not contain enough information.
-```
-
-**Example response:**
-```
-Based on the provided document, the key points are: [Relevant information extracted from your document]...
+curl -X POST http://localhost:8080/api/upload \
+  -F "file=@/path/to/your/document.pdf"
 ```
 
 ---
 
-## 🧪 Testing with Postman
+### `POST /api/chat` — Ask a question about your document
 
-[Postman](https://www.postman.com/) is a great tool for testing REST APIs. Follow these steps to test the SRAI endpoint:
+Accepts a `sessionId` and a `message`, runs HyDE retrieval against the session's vector store, and returns a grounded answer.
 
-### 1. Create a New Request
+**Request:**
+```http
+POST /api/chat
+Content-Type: application/json
 
-- Open Postman
-- Click **+ New** → **HTTP Request**
-- Set the request type to **GET**
-
-### 2. Enter the Endpoint URL
-
-In the URL field, enter:
-```
-http://localhost:8080/rag/models?message=YOUR_QUESTION_HERE
+{
+  "sessionId": "f3a7c821-91b4-4d3e-b3f1-abc123def456",
+  "message": "What are the key points in this document?"
+}
 ```
 
-Or use the **Params** tab:
-- **Key:** `message`
-- **Value:** `What are the key points from the document?`
+**Success response `200`:**
+```
+Based on the provided document, the key points are: ...
+```
 
-### 3. Send the Request
+**Error response `400`:**
+```
+Session not found or expired. Please re-upload your document.
+```
 
-Click the **Send** button. You should receive a response containing the answer grounded in your document.
-
-### 4. Example Postman Workflow
-
-| Step | Action |
-|------|--------|
-| Method | `GET` |
-| URL | `http://localhost:8080/rag/models` |
-| Params (Key) | `message` |
-| Params (Value) | `What is discussed in the document?` |
-| Click | **Send** |
-
-### Alternative: Using cURL
-
-If you prefer command-line testing, use cURL:
-
+**Example (cURL):**
 ```bash
-curl -X GET "http://localhost:8080/rag/models?message=What%20is%20discussed%20in%20the%20document%3F"
+curl -X POST http://localhost:8080/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"sessionId":"f3a7c821-91b4-4d3e-b3f1-abc123def456","message":"Summarize this document."}'
 ```
 
 ---
@@ -406,43 +468,47 @@ curl -X GET "http://localhost:8080/rag/models?message=What%20is%20discussed%20in
 
 HyDE is an advanced retrieval technique that improves accuracy:
 
-1. **Why HyDE?** — Instead of embedding your question directly, HyDE generates what an ideal answer might look like, then searches based on that. This often finds better matches because answers are more semantically similar to each other than questions are.
+1. **Why HyDE?** Instead of embedding your question directly, HyDE generates what an ideal answer might look like, then searches based on that. Answers are semantically closer to other answers than questions are, so retrieval is more accurate.
 
-2. **Fallback Mechanism** — If the HyDE-generated response contains phrases like "I don't have enough information" or is too short, the system automatically falls back to standard retrieval using your original question. This ensures robustness.
+2. **Fallback Mechanism:**  If the HyDE-generated response contains phrases like "I don't have enough information" or is too short, the system automatically falls back to standard retrieval using your original question.
 
-3. **Configuration** — You can adjust HyDE behavior in `ModelController.java`:
-   - Modify the `hydePrompt` to change how hypothetical answers are generated
-   - Adjust `topK` (currently 10) to retrieve more or fewer chunks
-   - Change `similarityThreshold` (currently 0.55) for stricter or looser matching
+3. **Configuration:** You can adjust HyDE behavior in `ModelController.java`:
+    - Modify `hydePrompt` to change how hypothetical answers are generated
+    - Adjust `topK` (currently 10) to retrieve more or fewer chunks
+    - Change `similarityThreshold` (currently 0.55) for stricter or looser matching
 
 ### Text Preprocessing
 
 The `TextPreprocessor` class handles document cleaning:
 
-1. **Normalization** — Converts to lowercase and removes special characters (keeps only alphanumeric and spaces)
-2. **Whitespace Normalization** — Collapses multiple spaces into single spaces
-3. **Trimming** — Removes leading/trailing whitespace
+1. **Whitespace Normalization:** Collapses multiple spaces into single spaces
+2. **Trimming:**  Removes leading/trailing whitespace
 
-This ensures consistent embedding quality and better retrieval accuracy.
+Minimal preprocessing is intentional aggressive character stripping (e.g. removing punctuation) can hurt embedding quality for named entities, dates, and numeric values.
 
 ### Document Chunking Strategy
 
-The `TokenTextSplitter` in `RagConfig` uses these settings:
+The `TokenTextSplitter` in `UploadController` uses these settings:
 
-- **Chunk Size**: 750 tokens — balances context window size with specificity
-- **Min Chunk Size**: 200 characters — ensures chunks have meaningful content
-- **Min Length to Embed**: 20 characters — filters out very small fragments
-- **Keep Separator**: `true` — preserves chunk boundaries for better context
+- **Chunk Size**: 750 tokens balances context window size with specificity
+- **Min Chunk Size**: 200 characters ensures chunks have meaningful content
+- **Min Length to Embed**: 20 characters filters out very small fragments
+- **Keep Separator**: `true` preserves chunk boundaries for better context
 
-These values are optimized for most document types but can be tuned in `RagConfig.java` for your specific use case.
+### OCR Quality
 
-### General Best Practices
+Tess4J accuracy depends on image quality:
+- Clean, high-resolution scans work excellently
+- Low-resolution or handwritten content may produce noisy output
+- For best results, use images with at least 150 DPI and good contrast
+- The `Estimating resolution as X` warning in the console is normal for images without embedded DPI metadata OCR still runs correctly
 
-- **Vector Store Caching** — The vector store is persisted locally, so the app loads embeddings from disk on subsequent startups. This is much faster than regenerating them.
-- **Updating Your Document** — If you modify your document, delete the `vectorstore.json` file so the app regenerates embeddings from the new content on the next startup.
-- **Adding Multiple Documents** — You can easily add more documents by modifying `RagConfig.java` to load multiple text files and combine them in the vector store.
-- **Model Tuning** — Adjust the Gemini model or the max output tokens in `application.properties` to customize the response behavior.
-- **Custom System Prompts** — Edit the system instructions in `ModelController.java` to change how the model responds to your specific use case.
+### Session Behaviour
+
+- Each uploaded document creates a new isolated session
+- Uploading a new file abandons the previous session (it will be evicted after 30 minutes idle)
+- If the chat shows "Session not found or expired", just re-upload your document
+- Session TTL and cleanup interval can be tuned in `SessionStore.java` and `SessionCleanUpScheduler.java`
 
 ---
 
@@ -461,39 +527,55 @@ These values are optimized for most document types but can be tuned in `RagConfi
 - Verify that `GOOGLE_GENAI_PROJECT_ID` environment variable is set correctly
 - Ensure the Project ID matches your Google Cloud project
 - Check that the project has Gemini API enabled
-- Restart your terminal/IDE after setting the environment variable
 
-### Issue: "Vector store file not found" or embeddings aren't loading
-
-**Solution:**
-- Ensure your document exists in `src/main/resources/data/`
-- Delete `vectorstore.json` to force regeneration
-- Check that the app has write permissions to the `src/main/resources/data/` directory
-
-### Issue: "Document not found" or content not being retrieved
+### Issue: OCR not working / `UnsatisfiedLinkError: Unable to load library 'tesseract'`
 
 **Solution:**
-- Verify your document file is placed in `src/main/resources/data/`
-- Check the file name matches the configuration in `RagConfig.java`
-- Ensure the document is in plain text format (.txt)
-- Delete `vectorstore.json` and restart to reprocess the document
+- Ensure Tesseract is installed (not just `eng.traineddata` — the full installer is required)
+- Verify `tess4j.datapath` in `application.properties` points to the correct `tessdata` folder
+- On Windows, use forward slashes in the path: `C:/Program Files/Tesseract-OCR/tessdata`
+- Restart the application after changing the path
 
-### Issue: Slow first startup
+### Issue: `Estimating resolution as 135` in console
 
-**Cause:** The first run generates embeddings for all document chunks, which takes time depending on document size and API latency.
+This is a Tesseract info message, not an error. It means the image has no embedded DPI metadata so Tesseract estimated it. OCR runs normally. Safe to ignore.
 
-**Solution:** This is normal. Subsequent runs will be much faster because embeddings are cached.
+### Issue: Session not found in chat after upload
+
+**Solution:**
+- Ensure the upload completed successfully and returned a `sessionId` (check browser Network tab)
+- Sessions expire after 30 minutes of inactivity — re-upload the document to start a new session
+- Avoid refreshing the page after upload as the in-memory `sessionId` stored in JS state will be lost
+
+### Issue: "No extractable text found in document"
+
+**Solution:**
+- For PDFs: ensure the PDF contains selectable text (not a scanned image — use a JPG/PNG instead for those)
+- For images: ensure Tesseract is installed and the image has legible text
+- For `.doc`/`.docx`: ensure the file is not password-protected
 
 ### Issue: "Port 8080 is already in use"
 
-**Solution:**
 ```bash
-# Change the port in application.properties or via environment variable:
 java -Dserver.port=8081 -jar target/RAG-0.0.1-SNAPSHOT.jar
+```
+
+Or add `server.port=8081` to `application.properties`.
+
+### Issue: JNA native access warning in console
+
+```
+WARNING: java.lang.System::load has been called by com.sun.jna.Native
+```
+
+This is a Java 17+ module system warning from Tess4J's native loading — not an error. To silence it, add this VM option in your run configuration:
+
+```
+--enable-native-access=ALL-UNNAMED
 ```
 
 ---
 
-## 🎯 In short
+## 🎯 In Short
 
-This project is a compact, real-world example of how to build a document-grounded AI assistant with Spring Boot, Spring AI, and Gemini. Use it as a foundation for your own RAG applications with any type of document content you need.
+SRAI is a compact, real-world RAG application built on Spring Boot and Spring AI. Users upload any supported document through a browser UI — text is extracted locally (no token cost), embedded via Gemini, and stored in a per-session vector store. Questions are answered using HyDE retrieval grounded strictly in the uploaded document. Use it as a foundation for your own document-grounded AI assistants.
