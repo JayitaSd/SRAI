@@ -88,7 +88,7 @@ The frontend at `http://localhost:8080` lets you:
 
 ### Pipeline Overview
 
-![RAG Pipeline](src/main/resources/images/Pipeline.png)
+![RAG Pipeline](src/main/resources/images/pipeline.png)
 
 ### 1️⃣ Document Upload & Text Extraction
 
