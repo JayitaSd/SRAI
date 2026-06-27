@@ -1,4 +1,4 @@
-package com.example.rag;
+package com.example.rag.util;
 
 public class TextPreprocessor {
     public static String cleanForEmbedding(String text) {
