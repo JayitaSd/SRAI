@@ -229,7 +229,6 @@ Update `tess4j.datapath` to match your Tesseract installation path. Use forward 
 ---
 
 ## 📁 Project Layout
-
 ```
 SRAI/                                                   # Root directory
 │
@@ -244,7 +243,7 @@ SRAI/                                                   # Root directory
 │   │   │       │   └── UploadController.java           # POST /api/upload — file intake & embedding
 │   │   │       │
 │   │   │       ├── model/
-│   │   │       │   ├── SessionData.java                # Per-session VectorStore + chat history
+│   │   │       │   ├── SessionData.java                # Per-session VectorStore
 │   │   │       │   └── ChatMessage.java                # Message value object (role, content, timestamp)
 │   │   │       │
 │   │   │       ├── service/
@@ -263,20 +262,16 @@ SRAI/                                                   # Root directory
 │   │       ├── application.properties                  # Spring Boot, Gemini & Tesseract configuration
 │   │       ├── static/                                 # Frontend served by Spring Boot
 │   │       │   ├── index.html                          # Two-panel RAG chat UI
-│   │       │   ├── index.css                           # Dark theme styles
+│   │       │   ├── index.css                           # Styles
 │   │       │   └── index.js                            # Upload + chat fetch logic
 │   │       └── images/
-│   │           └── pipeline_updated.png                # RAG pipeline architecture diagram
-│   │
-│   └── test/
-│       └── java/
-│           └── com/example/rag/
-│               └── RagApplicationTests.java            # Application tests
+│   │           └── pipeline.png                        # RAG pipeline architecture diagram
 │
 ├── pom.xml                                             # Maven dependencies & build config
 ├── mvnw & mvnw.cmd                                     # Maven Wrapper scripts
 ├── README.md                                           # Project documentation
 └── .gitignore                                          # Git ignore rules
+
 ```
 
 ### Key Java Classes
@@ -285,14 +280,14 @@ SRAI/                                                   # Root directory
 |-------|----------------|
 | `RagApplication.java` | Spring Boot bootstrap |
 | `UploadController.java` | Handles file upload, routes to extractor, chunks, embeds, creates session |
-| `ModelController.java` | Handles chat — HyDE retrieval, fallback, session lookup |
+| `ModelController.java` | Handles chat HyDE retrieval, fallback, session lookup |
 | `DocExtractService.java` | Extracts text from `.txt`, `.pdf`, `.doc`, `.docx` locally |
 | `OcrService.java` | Extracts text from images via Tess4J OCR |
 | `SessionStore.java` | Thread-safe session registry with idle TTL eviction |
 | `SessionData.java` | Holds per-session `VectorStore` and chat history |
 | `FileValidationUtil.java` | Validates file size, extension, and content type |
 | `TextPreprocessor.java` | Normalizes whitespace and cleans extracted text |
-| `SessionCleanUpScheduler.java` | Scheduled task — evicts idle sessions every 10 minutes |
+| `SessionCleanUpScheduler.java` | Scheduled task evicts idle sessions every 10 minutes |
 
 ### Key Directories
 
